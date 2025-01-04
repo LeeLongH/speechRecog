@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">Word Recognition</string>
+    <string name="channel_name">Word recognition</string>
+    <string name="channel_desc">Posts recognized words from audio input</string>
+    <string name="notification_title">Word recognition</string>
+    <string name="notification_text">Tap to return to app</string>
+    <string name="notification_prediction">Predicted word: </string>
+    <string name="menu_home">Home</string>
+    <string name="menu_settings">Settings</string>
+
+    <!-- Preference Titles -->
+    <string name="detection_header">Detection</string>
+    <string name="results_header">Results</string>
+
+    <!-- Detection Preferences -->
+    <string name="energy_title">Energy threshold</string>
+    <string name="probability_title">Probability threshold</string>
+    <string name="window_title">Window size</string>
+    <string name="top_k_title">Top k</string>
+    <string name="top_k_summary">Number of top predictions to display</string>
+    <string name="top_k_dialog">Select number of top predictions to display</string>
+
+</resources>

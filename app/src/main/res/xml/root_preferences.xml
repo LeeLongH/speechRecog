@@ -1,0 +1,38 @@
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory app:title="@string/detection_header"
+        app:icon="@drawable/baseline_settings_24">
+
+        <EditTextPreference
+            app:key="energy"
+            app:title="@string/energy_title"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:key="probability"
+            app:title="@string/probability_title"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            app:key="window_size"
+            app:title="@string/window_title"
+            app:useSimpleSummaryProvider="true"
+            android:inputType="numberDecimal"
+            android:digits="0123456789" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/results_header"
+        app:icon="@drawable/baseline_bar_chart_24">
+
+        <EditTextPreference
+            app:key="top_k"
+            app:title="@string/top_k_title"
+            app:summary="@string/top_k_summary"
+            app:dialogMessage="@string/top_k_dialog"
+            android:inputType="numberDecimal"
+            android:digits="0123456789" />
+    </PreferenceCategory>
+
+</PreferenceScreen>

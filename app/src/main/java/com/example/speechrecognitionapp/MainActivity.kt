@@ -10,6 +10,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
+import androidx.constraintlayout.widget.Constraints
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.findNavController
@@ -62,6 +63,8 @@ class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
         // Enqueue the work
         WorkManager.getInstance(this).enqueue(uploadWorkRequest)
     }
+
+    private fun PeriodicWorkRequestBuilder(i: Int, unit: TimeUnit) {}
 
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.fragmentContainerView)

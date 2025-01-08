@@ -47,8 +47,9 @@ class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
 
     private fun scheduleLogUpload() {
         // WorkManager constraints:
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.UNMETERED) //Wi-Fi Only
+        val constraints = Constraints.Builder()git stash list
+
+                .setRequiredNetworkType(NetworkType.UNMETERED) //Wi-Fi Only
             .build()
 
         // PeriodicWorkRequest: run every 15 minutes (minimum on Android).

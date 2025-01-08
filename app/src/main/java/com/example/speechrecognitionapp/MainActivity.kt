@@ -14,7 +14,13 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.findNavController
 import androidx.navigation.ui.setupActionBarWithNavController
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.speechrecognitionapp.databinding.ActivityMainBinding
+import com.example.speechrecognitionapp.workers.LogUploadWorker
+import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
 
@@ -35,6 +41,25 @@ class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
         } catch (e: Exception) {
             Log.d(TAG, "Error: " + e.message)
         }
+
+        scheduleLogUpload()
+    }
+
+    private fun scheduleLogUpload() {
+        // WorkManager constraints:
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.UNMETERED) //Wi-Fi Only
+            .build()
+
+        // PeriodicWorkRequest: run every 15 minutes (minimum on Android).
+        val uploadWorkRequest = PeriodicWorkRequestBuilder<LogUploadWorker>(
+            15, TimeUnit.MINUTES
+        )
+            .setConstraints(constraints)
+            .build()
+
+        // Enqueue the work
+        WorkManager.getInstance(this).enqueue(uploadWorkRequest)
     }
 
     override fun onSupportNavigateUp(): Boolean {

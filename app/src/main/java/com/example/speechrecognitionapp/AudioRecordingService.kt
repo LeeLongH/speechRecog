@@ -12,6 +12,8 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.example.speechrecognitionapp.logging.LogEntry
+import com.example.speechrecognitionapp.logging.LoggingManager
 import java.util.*
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.support.common.FileUtil
@@ -314,6 +316,13 @@ class AudioRecordingService : Service() {
                 notification = createNotification()
                 updateNotification(result!!)
 
+                //Log entry
+                val logEntry = LogEntry(
+                    timestamp = System.currentTimeMillis(),
+                    topKeyword = result ?: "unknown",
+                    confidence = value.toDouble()
+                )
+                LoggingManager.appendLog(this, logEntry)
             }
 
 

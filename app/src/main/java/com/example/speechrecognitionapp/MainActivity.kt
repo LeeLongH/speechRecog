@@ -15,10 +15,13 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.findNavController
 import androidx.navigation.ui.setupActionBarWithNavController
+/* PAUL
 import androidx.work.Constraints
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+*/
+
 import com.example.speechrecognitionapp.databinding.ActivityMainBinding
 import com.example.speechrecognitionapp.workers.LogUploadWorker
 import java.util.concurrent.TimeUnit
@@ -43,13 +46,12 @@ class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
             Log.d(TAG, "Error: " + e.message)
         }
 
-        scheduleLogUpload()
+        //scheduleLogUpload() PUAL
     }
 
-    private fun scheduleLogUpload() {
+    /*private fun scheduleLogUpload() { PAUL
         // WorkManager constraints:
         val constraints = Constraints.Builder()git stash list
-
                 .setRequiredNetworkType(NetworkType.UNMETERED) //Wi-Fi Only
             .build()
 
@@ -75,7 +77,7 @@ class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
         val inflater: MenuInflater = menuInflater
         inflater.inflate(R.menu.main_menu_bar, menu)
         return super.onCreateOptionsMenu(menu)
-    }
+    }*/
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId){

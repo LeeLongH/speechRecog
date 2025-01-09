@@ -1,6 +1,7 @@
 package com.example.speechrecognitionapp
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.*
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -21,6 +22,8 @@ import org.tensorflow.lite.support.common.TensorProcessor
 import org.tensorflow.lite.support.label.TensorLabel
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import kotlin.collections.ArrayList
+import kotlin.math.log10
+import kotlin.math.sqrt
 
 
 class AudioRecordingService : Service() {
@@ -47,6 +50,7 @@ class AudioRecordingService : Service() {
         private const val NOTIFICATION_ID = 202
     }
     // Tweak parameters
+    private var dbThreshold = 50
     private var energyThreshold = 0.1
     private var probabilityThreshold = 0.002f
     private var windowSize = SAMPLE_RATE / 2
@@ -247,6 +251,18 @@ class AudioRecordingService : Service() {
     }
 
     private fun computeBuffer(audioBuffer: DoubleArray) {
+
+        val decibels = calculateDecibels(audioBuffer)
+        Log.d(TAG, "Sound level: $decibels dB")
+
+        if (decibels < dbThreshold) {
+            Log.d(TAG, "Sound level below threshold, skipping prediction.")
+
+            // Send callback indicating no one is talking
+            callback?.onDataUpdated(arrayListOf(Result("none", 0.0)))
+            return // Skip further processing since no sound was detected
+        }
+        
         val mfccConvert = MFCC()
         mfccConvert.setSampleRate(SAMPLE_RATE)
         val nMFCC = NUM_MFCC
@@ -269,6 +285,12 @@ class AudioRecordingService : Service() {
 
         // Pass matrix to model
         loadAndPredict(mfccInput)
+    }
+
+    private fun calculateDecibels(buffer: DoubleArray): Double {
+        // Calculate RMS
+        val rms = sqrt(buffer.map { it * it }.average())
+        return 20 * log10(rms) + 85
     }
 
     private fun loadAndPredict(mfccs: FloatArray) {
@@ -329,6 +351,7 @@ class AudioRecordingService : Service() {
         }
     }
     
+    @SuppressLint("ForegroundServiceType")
     fun foreground() {
         notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)

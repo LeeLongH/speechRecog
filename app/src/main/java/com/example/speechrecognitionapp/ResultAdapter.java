@@ -1,5 +1,6 @@
 package com.example.speechrecognitionapp;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.view.View;
 import android.view.ViewGroup;
@@ -31,6 +32,7 @@ public class ResultAdapter extends ArrayAdapter<Result> implements View.OnClickL
 
     }
 
+    @SuppressLint({"DefaultLocale", "SetTextI18n"})
     @Override
     public View getView(int position, View convertView, ViewGroup parent) {
         Result result = getItem(position);
@@ -46,9 +48,20 @@ public class ResultAdapter extends ArrayAdapter<Result> implements View.OnClickL
         } else {
             viewHolder = (ViewHolder) convertView.getTag();
         }
-        viewHolder.txtLabel.setText(result.getLabel());
-        viewHolder.txtValue.setText(String.format("%.2f", result.getConfidence() * 100));
-        viewHolder.progressBar.setProgress((int) (result.getConfidence() * 100));
+
+
+        // Check if "none" means no one is talking
+        assert result != null;
+        if ("none".equals(result.getLabel())) {
+            viewHolder.txtLabel.setText("No one is talking");
+            viewHolder.txtValue.setText(""); // Leave it blank or set another value if needed
+            viewHolder.progressBar.setProgress(0); // Set progress to 0, or hide it if desired
+        } else {
+            viewHolder.txtLabel.setText(result.getLabel());
+            viewHolder.txtValue.setText(String.format("%.2f", result.getConfidence() * 100));
+            viewHolder.progressBar.setProgress((int) (result.getConfidence() * 100));
+        }
+
 
         return convertView;
     }

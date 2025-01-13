@@ -10,25 +10,26 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
-import androidx.constraintlayout.widget.Constraints
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.findNavController
 import androidx.navigation.ui.setupActionBarWithNavController
-/* PAUL
-import androidx.work.Constraints
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-*/
+import com.google.firebase.FirebaseApp
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
+
 
 import com.example.speechrecognitionapp.databinding.ActivityMainBinding
-import com.example.speechrecognitionapp.workers.LogUploadWorker
-import java.util.concurrent.TimeUnit
+import com.example.speechrecognitionapp.logging.LoggingManager
+import com.google.android.gms.tasks.Tasks
+import org.json.JSONArray
 
 class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
 
     private lateinit var binding: ActivityMainBinding
+
+    var firebaseDatabase: FirebaseDatabase? = null
+    var databaseReference: DatabaseReference? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,28 +46,45 @@ class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
         } catch (e: Exception) {
             Log.d(TAG, "Error: " + e.message)
         }
+        FirebaseApp.initializeApp(this)
 
-        //scheduleLogUpload() PUAL
+        firebaseDatabase = FirebaseDatabase.getInstance("https://speechrecognitionapp-d1fcb-default-rtdb.firebaseio.com/")
+        databaseReference = firebaseDatabase!!.getReference("words") //
+
     }
 
-    /*private fun scheduleLogUpload() { PAUL
-        // WorkManager constraints:
-        val constraints = Constraints.Builder()git stash list
-                .setRequiredNetworkType(NetworkType.UNMETERED) //Wi-Fi Only
-            .build()
-
-        // PeriodicWorkRequest: run every 15 minutes (minimum on Android).
-        val uploadWorkRequest = PeriodicWorkRequestBuilder<LogUploadWorker>(
-            15, TimeUnit.MINUTES
-        )
-            .setConstraints(constraints)
-            .build()
-
-        // Enqueue the work
-        WorkManager.getInstance(this).enqueue(uploadWorkRequest)
+    fun writeFirebase(databaseReference: DatabaseReference? = this.databaseReference) {
+        try {
+            // 1) Fetch logs
+            val logs = LoggingManager.fetchAndClearLogs(applicationContext)
+            if (logs.isNotBlank()) {
+                // 2) Push logs to Realtime Database
+                val dbTask = databaseReference?.push()?.setValue(logs)
+                // Wait for completion (blocks this thread)
+                //Tasks.await(dbTask)
+                Log.d(TAG, "Successfully pushed logs to Realtime Database.")
+            } else {
+                Log.d(TAG, "No logs to push at this time.")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error uploading logs", e)
+        }
     }
 
-    private fun PeriodicWorkRequestBuilder(i: Int, unit: TimeUnit) {}
+    private fun transformLogs(logs: String): String {
+        // Example logs: [{"Word":"cat"},{"Word":"six"},{"Word":"sheila"}...]
+        val originalArray = JSONArray(logs)
+        val newArray = JSONArray()
+
+        for (i in 0 until originalArray.length()) {
+            val obj = originalArray.getJSONObject(i)
+            val word = obj.optString("Word") // e.g. "cat"
+            newArray.put(word)              // add "cat" to the new array
+        }
+
+        // newArray is now something like ["cat","six","sheila","two","three","two"]
+        return newArray.toString()
+    }
 
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.fragmentContainerView)
@@ -77,7 +95,8 @@ class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
         val inflater: MenuInflater = menuInflater
         inflater.inflate(R.menu.main_menu_bar, menu)
         return super.onCreateOptionsMenu(menu)
-    }*/
+    }
+
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId){
@@ -106,5 +125,7 @@ class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
 
     companion object {
         private val TAG = MainActivity::class.simpleName
+        private const val PREF_NAME = "MyPreferences"
+        private const val KEY_ONE = "ONE"
     }
 }

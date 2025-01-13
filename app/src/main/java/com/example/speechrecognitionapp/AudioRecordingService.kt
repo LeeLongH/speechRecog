@@ -340,9 +340,7 @@ class AudioRecordingService : Service() {
 
                 //Log entry
                 val logEntry = LogEntry(
-                    timestamp = System.currentTimeMillis(),
                     topKeyword = result ?: "unknown",
-                    confidence = value.toDouble()
                 )
                 LoggingManager.appendLog(this, logEntry)
             }

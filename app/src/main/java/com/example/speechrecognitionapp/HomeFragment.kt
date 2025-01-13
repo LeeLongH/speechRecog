@@ -52,6 +52,8 @@ class HomeFragment : Fragment(), RecordingCallback {
                 // Stop the service, if running
                 binding.btnRecord.text = "Record"
                 stopService()
+                val mainActivity = activity as? MainActivity
+                (activity as? MainActivity)?.writeFirebase()
             } else {
                 // Start the service, if not running
                 binding.btnRecord.text = "Stop"

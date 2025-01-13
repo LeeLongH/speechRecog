@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "712385449573",
+    "project_id": "speechrecognitionapp-d1fcb",
+    "storage_bucket": "speechrecognitionapp-d1fcb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:712385449573:android:0dcfd376460dc8c814808c",
+        "android_client_info": {
+          "package_name": "com.example.speechrecognitionapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7MJ0ik6Xlwa8zq8OZ0rHN1McRLtT8Y_E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -15,8 +15,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.findNavController
 import androidx.navigation.ui.setupActionBarWithNavController
-/* PAUL
-import androidx.work.Constraints
+/*
+import androidx.work.Constraints as WorkConstraints
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -46,27 +46,23 @@ class MainActivity : AppCompatActivity()/*, RecordingCallback*/ {
             Log.d(TAG, "Error: " + e.message)
         }
 
-        //scheduleLogUpload() PUAL
+        //scheduleLogUpload()
     }
 
-    /*private fun scheduleLogUpload() { PAUL
-        // WorkManager constraints:
-        val constraints = Constraints.Builder()git stash list
-                .setRequiredNetworkType(NetworkType.UNMETERED) //Wi-Fi Only
+    /*private fun scheduleLogUpload() {
+        val constraints = WorkConstraints.Builder()
+            .setRequiredNetworkType(NetworkType.UNMETERED) // Wi-Fi only
             .build()
 
-        // PeriodicWorkRequest: run every 15 minutes (minimum on Android).
+        // Minimum interval on Android is ~15 minutes
         val uploadWorkRequest = PeriodicWorkRequestBuilder<LogUploadWorker>(
             15, TimeUnit.MINUTES
         )
             .setConstraints(constraints)
             .build()
 
-        // Enqueue the work
         WorkManager.getInstance(this).enqueue(uploadWorkRequest)
     }
-
-    private fun PeriodicWorkRequestBuilder(i: Int, unit: TimeUnit) {}
 
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.fragmentContainerView)

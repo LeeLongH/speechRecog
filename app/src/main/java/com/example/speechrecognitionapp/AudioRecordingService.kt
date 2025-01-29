@@ -1,5 +1,7 @@
 package com.example.speechrecognitionapp
 
+import SileroVAD
+import ai.onnxruntime.OnnxTensor
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.*
@@ -21,6 +23,7 @@ import org.tensorflow.lite.support.common.FileUtil
 import org.tensorflow.lite.support.common.TensorProcessor
 import org.tensorflow.lite.support.label.TensorLabel
 import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
+import java.nio.FloatBuffer
 import kotlin.collections.ArrayList
 import kotlin.math.log10
 import kotlin.math.sqrt
@@ -252,7 +255,9 @@ class AudioRecordingService : Service() {
 
     private fun computeBuffer(audioBuffer: DoubleArray) {
 
-        val decibels = calculateDecibels(audioBuffer)
+        //Root-Mean-Square
+
+        /*val decibels = calculateDecibels(audioBuffer)
         Log.d(TAG, "Sound level: $decibels dB")
 
         if (decibels < dbThreshold) {
@@ -262,7 +267,7 @@ class AudioRecordingService : Service() {
             callback?.onDataUpdated(arrayListOf(Result("none", 0.0)))
             return // Skip further processing since no sound was detected
         }
-        
+
         val mfccConvert = MFCC()
         mfccConvert.setSampleRate(SAMPLE_RATE)
         val nMFCC = NUM_MFCC
@@ -272,6 +277,43 @@ class AudioRecordingService : Service() {
         val mfccValues = Array(nMFCC) { FloatArray(nFFT) }
 
         //loop to convert the mfcc values into multi-dimensional array
+        for (i in 0 until nFFT) {
+            var indexCounter = i * nMFCC
+            val rowIndexValue = i % nFFT
+            for (j in 0 until nMFCC) {
+                mfccValues[j][rowIndexValue] = mfccInput[indexCounter]
+                indexCounter++
+            }
+        }
+
+        Log.d(TAG, "MFCC Shape: ${mfccValues.size}, ${mfccValues[0].size}")
+
+        // Pass matrix to model
+        loadAndPredict(mfccInput)*/
+
+        // Silero
+
+        // Convert DoubleArray to FloatArray for PyTorch model
+        val vadModel = SileroVAD(this)
+        val speechDetected = vadModel.isSpeechDetected(audioBuffer.map { it.toFloat() }.toFloatArray())
+
+        if (!speechDetected) {
+            Log.d(TAG, "No speech detected, skipping prediction.")
+            callback?.onDataUpdated(arrayListOf(Result("none", 0.0)))
+            return
+        }
+
+        Log.d(TAG, "Speech detected, proceeding with feature extraction.")
+
+        // MFCC Feature Extraction
+        val mfccConvert = MFCC()
+        mfccConvert.setSampleRate(SAMPLE_RATE)
+        val nMFCC = NUM_MFCC
+        mfccConvert.setN_mfcc(nMFCC)
+        val mfccInput = mfccConvert.process(audioBuffer)
+        val nFFT = mfccInput.size / nMFCC
+        val mfccValues = Array(nMFCC) { FloatArray(nFFT) }
+
         for (i in 0 until nFFT) {
             var indexCounter = i * nMFCC
             val rowIndexValue = i % nFFT
@@ -348,7 +390,7 @@ class AudioRecordingService : Service() {
 
         }
     }
-    
+
     @SuppressLint("ForegroundServiceType")
     fun foreground() {
         notification = createNotification()

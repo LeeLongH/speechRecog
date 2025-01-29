@@ -65,4 +65,6 @@ dependencies {
     //WorkManager and Firebase Storage for logging
     implementation("androidx.work:work-runtime-ktx:2.8.1")
     implementation("com.google.firebase:firebase-storage:20.2.1")
+
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.15.1")
 }

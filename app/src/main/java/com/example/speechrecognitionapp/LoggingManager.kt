@@ -30,7 +30,7 @@ object LoggingManager {
 
             // Create JSON object for the new entry
             val logJson = JSONObject()
-            logJson.put("", entry.topKeyword)
+            logJson.put("Word", entry.topKeyword)
 
             // Add to array
             logsArray.put(logJson)

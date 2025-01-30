@@ -103,6 +103,7 @@ class AudioRecordingService : Service() {
         return serviceBinder
     }
 
+    private var selectedMethod: String = "RMS"
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Starting service")
 
@@ -113,6 +114,7 @@ class AudioRecordingService : Service() {
                 probabilityThreshold = bundle.getFloat("probabilityThreshold")
                 windowSize = bundle.getInt("windowSize")
                 topK = bundle.getInt("topK")
+                selectedMethod = bundle.getString("method", "RMS")
             }
             Log.d(TAG, "Energy threshold: $energyThreshold")
             Log.d(TAG, "Probability threshold: $probabilityThreshold")
@@ -242,7 +244,11 @@ class AudioRecordingService : Service() {
 
             }
 
-            computeBuffer(recordingBuffer)
+            if (selectedMethod == "RMS") {
+                computeBufferRMS(recordingBuffer)
+            } else {
+                computeBufferSilero(recordingBuffer)
+            }
 
             System.arraycopy(recordingBuffer, windowSize, tempRecordingBuffer, 0, recordingBuffer.size - windowSize)
             recordingBuffer = DoubleArray(RECORDING_LENGTH)
@@ -253,11 +259,11 @@ class AudioRecordingService : Service() {
         stopRecording()
     }
 
-    private fun computeBuffer(audioBuffer: DoubleArray) {
+    private fun computeBufferRMS(audioBuffer: DoubleArray) {
 
         //Root-Mean-Square
 
-        /*val decibels = calculateDecibels(audioBuffer)
+        val decibels = calculateDecibels(audioBuffer)
         Log.d(TAG, "Sound level: $decibels dB")
 
         if (decibels < dbThreshold) {
@@ -289,8 +295,10 @@ class AudioRecordingService : Service() {
         Log.d(TAG, "MFCC Shape: ${mfccValues.size}, ${mfccValues[0].size}")
 
         // Pass matrix to model
-        loadAndPredict(mfccInput)*/
+        loadAndPredict(mfccInput)
+    }
 
+    private fun computeBufferSilero(audioBuffer: DoubleArray) {
         // Silero
 
         // Convert DoubleArray to FloatArray for PyTorch model
@@ -383,6 +391,7 @@ class AudioRecordingService : Service() {
                 //Log entry
                 val logEntry = LogEntry(
                     topKeyword = result ?: "unknown",
+                    confidence = value.toDouble()
                 )
                 LoggingManager.appendLog(this, logEntry)
             }
@@ -405,7 +414,23 @@ class AudioRecordingService : Service() {
 
     private fun stopRecording() {
         isRecording = false
+
+        if (audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+            try {
+                audioRecord?.stop()
+            } catch (e: IllegalStateException) {
+                Log.e(TAG, "Error stopping AudioRecord", e)
+            }
+        }
+
+        audioRecord?.release()
+        audioRecord = null
+
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
+
+
 
     override fun onDestroy() {
         stopRecording()

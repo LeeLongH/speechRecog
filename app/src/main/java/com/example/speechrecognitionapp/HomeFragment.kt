@@ -45,23 +45,42 @@ class HomeFragment : Fragment(), RecordingCallback {
 
         return view
     }
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
         binding.btnRecord.setOnClickListener {
-            if(isServiceBound) {
-                // Stop the service, if running
-                binding.btnRecord.text = "Record"
+            if (isServiceBound) {
+                // Stop the service if running
+                binding.btnRecord.text = "Record with RMS"
                 stopService()
-                val mainActivity = activity as? MainActivity
                 (activity as? MainActivity)?.writeFirebase()
             } else {
-                // Start the service, if not running
+                // Start the service
                 binding.btnRecord.text = "Stop"
-                startService()
+                val intent = Intent(requireActivity(), AudioRecordingService::class.java)
+                intent.putExtra("method", "RMS")
+                requireActivity().startService(intent)
+                bindService()
             }
         }
 
+        binding.btnRecordSilero.setOnClickListener {
+            if (isServiceBound) {
+                // Stop the service if running
+                binding.btnRecordSilero.text = "Record with Silero"
+                stopService()
+                (activity as? MainActivity)?.writeFirebase()
+            } else {
+                // Start the service
+                binding.btnRecordSilero.text = "Stop"
+                val intent = Intent(requireActivity(), AudioRecordingService::class.java)
+                intent.putExtra("method", "Silero")
+                requireActivity().startService(intent)
+                bindService()
+            }
+        }
     }
+
     override fun onDataUpdated(data: ArrayList<Result>) {
         Log.d(TAG, "Updated:" + data.size)
         activity?.runOnUiThread {
@@ -99,12 +118,13 @@ class HomeFragment : Fragment(), RecordingCallback {
     override fun onStop() {
         super.onStop()
 
-        if (isServiceBound) {
-            if (audioRecordingService?.isRecording!!) {
+        if (isServiceBound && audioRecordingService != null) {
+            if (audioRecordingService?.isRecording == true) {
                 Log.d(TAG, "Foregrounding service")
                 audioRecordingService?.foreground()
             }
         } else {
+            Log.d(TAG, "Stopping service from onStop")
             stopService()
         }
     }
@@ -136,15 +156,21 @@ class HomeFragment : Fragment(), RecordingCallback {
     }
 
     private fun stopService() {
-        unbindService()
+        if (isServiceBound) {
+            unbindService()
+            isServiceBound = false
+        }
         val serviceIntent = Intent(activity, AudioRecordingService::class.java)
         activity?.stopService(serviceIntent)
     }
 
+
     private fun bindService() {
         val bindIntent = Intent(activity, AudioRecordingService::class.java)
         activity?.bindService(bindIntent, serviceConnection, AppCompatActivity.BIND_AUTO_CREATE)
+        isServiceBound = true
     }
+
 
     private fun unbindService() {
         if (isServiceBound) {

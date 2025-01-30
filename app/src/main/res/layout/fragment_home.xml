@@ -20,24 +20,41 @@
             android:layout_alignParentTop="true"
             android:layout_above="@+id/btnRecord"
             android:divider="@android:color/darker_gray"
-            android:dividerHeight="1dp"
-            />
-
+            android:dividerHeight="1dp"/>
 
         <Button
             android:id="@+id/btnRecord"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
             android:backgroundTint="@color/blue_lovely"
             android:textColor="@color/black"
-            android:layout_centerHorizontal="true"
             android:layout_alignParentBottom="true"
             android:layout_marginBottom="16dp"
-            android:layout_marginTop="16dp"
+            android:layout_toStartOf="@+id/space"
             android:drawableLeft="@drawable/baseline_mic_24"
-            android:text="Record"/>
+            android:text="Record with RMS"/>
+
+        <View
+            android:id="@+id/space"
+            android:layout_width="30dp"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:layout_alignParentBottom="true"
+            android:layout_marginBottom="16dp"/>
+
+        <Button
+            android:id="@+id/btnRecordSilero"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:backgroundTint="@color/blue_lovely"
+            android:textColor="@color/black"
+            android:layout_alignParentBottom="true"
+            android:layout_marginBottom="16dp"
+            android:layout_toEndOf="@id/space"
+            android:drawableLeft="@drawable/baseline_mic_24"
+            android:text="Record with Silero"/>
 
     </RelativeLayout>
+
 
 </FrameLayout>

@@ -32,7 +32,7 @@
             android:layout_marginBottom="16dp"
             android:layout_toStartOf="@+id/space"
             android:drawableLeft="@drawable/baseline_mic_24"
-            android:text="Record with RMS"/>
+            android:text="Record with dB"/>
 
         <View
             android:id="@+id/space"

@@ -28,7 +28,6 @@ import kotlin.collections.ArrayList
 import kotlin.math.log10
 import kotlin.math.sqrt
 
-
 class AudioRecordingService : Service() {
 
     companion object {
@@ -39,31 +38,29 @@ class AudioRecordingService : Service() {
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         private const val AUDIO_INPUT = MediaRecorder.AudioSource.MIC
 
-
         private const val DESIRED_LENGTH_SECONDS = 1
         private const val RECORDING_LENGTH = SAMPLE_RATE * DESIRED_LENGTH_SECONDS // in seconds
 
-        // MFCC parameters
+        // Model input shape depends on your .tflite
         private const val NUM_MFCC = 13
-        // private const val NUM_FILTERS = 26
-        // private const val FFT_SIZE = 2048
 
         // Notifications
         private const val CHANNEL_ID = "word_recognition"
         private const val NOTIFICATION_ID = 202
     }
-    // Tweak parameters
+
+    // We use this for a simple dB threshold test (in decibels)
     private var dbThreshold = 50
-    private var energyThreshold = 0.1
+
+    // These come from SharedPreferences
+    private var energyThreshold = 0.1      // Not used here (you can adapt it if you prefer)
     private var probabilityThreshold = 0.002f
     private var windowSize = SAMPLE_RATE / 2
     private var topK = 3
 
     private var recordingBufferSize = 0
-
     private var audioRecord: AudioRecord? = null
     private var audioRecordingThread: Thread? = null
-    // private var recognitionThread: Thread? = null
 
     var isRecording: Boolean = false
     var recordingBuffer: DoubleArray = DoubleArray(RECORDING_LENGTH)
@@ -73,7 +70,6 @@ class AudioRecordingService : Service() {
     private var notification: Notification? = null
 
     private var callback: RecordingCallback? = null
-
     private var isBackground = true
 
     inner class RunServiceBinder : Binder() {
@@ -82,6 +78,9 @@ class AudioRecordingService : Service() {
     }
 
     var serviceBinder = RunServiceBinder()
+
+    // Chosen method: "dB" or "Silero"
+    private var selectedMethod: String = "dB"
 
     override fun onCreate() {
         Log.d(TAG, "Creating service")
@@ -92,6 +91,7 @@ class AudioRecordingService : Service() {
         recordingBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, AUDIO_CHANNELS, AUDIO_FORMAT)
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            // Permission denied
             return
         }
         audioRecord = AudioRecord(AUDIO_INPUT, SAMPLE_RATE, AUDIO_CHANNELS, AUDIO_FORMAT, recordingBufferSize)
@@ -99,26 +99,25 @@ class AudioRecordingService : Service() {
 
     override fun onBind(intent: Intent): IBinder {
         Log.d(TAG, "Binding service")
-
         return serviceBinder
     }
 
-    private var selectedMethod: String = "RMS"
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Starting service")
 
         if (intent != null) {
             val bundle = intent.extras
             if (bundle != null) {
-                energyThreshold = bundle.getDouble("energyThreshold")
-                probabilityThreshold = bundle.getFloat("probabilityThreshold")
-                windowSize = bundle.getInt("windowSize")
-                topK = bundle.getInt("topK")
-                selectedMethod = bundle.getString("method", "RMS")
+                energyThreshold = bundle.getDouble("energyThreshold", 0.1)
+                probabilityThreshold = bundle.getFloat("probabilityThreshold", 0.002f)
+                windowSize = bundle.getInt("windowSize", SAMPLE_RATE / 2)
+                topK = bundle.getInt("topK", 3)
+                selectedMethod = bundle.getString("method", "dB")
             }
             Log.d(TAG, "Energy threshold: $energyThreshold")
             Log.d(TAG, "Probability threshold: $probabilityThreshold")
             Log.d(TAG, "Window size: $windowSize")
+            Log.d(TAG, "Method: $selectedMethod")
         }
 
         startRecording()
@@ -127,7 +126,11 @@ class AudioRecordingService : Service() {
     }
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(CHANNEL_ID, getString(R.string.channel_name), NotificationManager.IMPORTANCE_HIGH)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            getString(R.string.channel_name),
+            NotificationManager.IMPORTANCE_HIGH
+        )
         channel.description = getString(R.string.channel_desc)
         channel.enableLights(true)
         channel.lightColor = Color.BLUE
@@ -146,9 +149,15 @@ class AudioRecordingService : Service() {
             .setOnlyAlertOnce(true)
             .setAutoCancel(false)
 
-        val resultIntent = Intent(this, MainActivity::class.java)
-        resultIntent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-        val resultPendingIntent = PendingIntent.getActivity(this, 0, resultIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val resultIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val resultPendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            resultIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         builder.setContentIntent(resultPendingIntent)
 
         notificationBuilder = builder
@@ -157,11 +166,9 @@ class AudioRecordingService : Service() {
 
     private fun updateNotification(label: String) {
         if (isBackground) return
-        if (notificationBuilder == null) {
-            return
-        } else {
-            notificationBuilder?.setContentText(getText(R.string.notification_prediction).toString() + " " + label)
-        }
+        if (notificationBuilder == null) return
+
+        notificationBuilder?.setContentText(getText(R.string.notification_prediction).toString() + " " + label)
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notificationBuilder?.build())
     }
@@ -171,14 +178,10 @@ class AudioRecordingService : Service() {
     }
 
     private fun updateData(data: ArrayList<Result>) {
-        // Sort results
-        Collections.sort(data, object : Comparator<Result> {
-            override fun compare(o1: Result, o2: Result): Int {
-                return o2.confidence.compareTo(o1.confidence)
-            }
-        })
+        // Sort by confidence desc
+        data.sortByDescending { it.confidence }
 
-        // Keep top K results
+        // Keep top K
         if (data.size > topK) {
             data.subList(topK, data.size).clear()
         }
@@ -187,33 +190,25 @@ class AudioRecordingService : Service() {
     }
 
     private fun startRecording() {
-        if(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED){
-            // Access denied
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            // Permission denied
             return
         }
         isRecording = true
-        audioRecordingThread = Thread {
-            run {
-                record()
-            }
-        }
+        audioRecordingThread = Thread { record() }
         audioRecordingThread?.start()
     }
 
     private fun record() {
         android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO)
-        if(ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED){
-            // Access denied
-            return
-        }
-
         if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-            Log.e(TAG, "Audio Record can't initialize!")
+            Log.e(TAG, "AudioRecord not initialized!")
             return
         }
 
         audioRecord?.startRecording()
-        Log.v(TAG, "Start recording")
+        Log.v(TAG, "Start recording thread")
 
         var firstLoop = true
         var totalSamplesRead: Int
@@ -223,180 +218,151 @@ class AudioRecordingService : Service() {
 
             if (!firstLoop) {
                 totalSamplesRead = SAMPLE_RATE - windowSize
-
             } else {
                 totalSamplesRead = 0
                 firstLoop = false
             }
+
+            // Fill up one second of audio
             while (totalSamplesRead < SAMPLE_RATE) {
                 val remainingSamples = SAMPLE_RATE - totalSamplesRead
                 val samplesToRead = if (remainingSamples > recordingBufferSize) recordingBufferSize else remainingSamples
                 val audioBuffer = ShortArray(samplesToRead)
                 val read = audioRecord?.read(audioBuffer, 0, samplesToRead)
 
-                if (read != AudioRecord.ERROR_INVALID_OPERATION && read != AudioRecord.ERROR_BAD_VALUE) {
-                    for (i in 0 until read!!){
+                if (read != AudioRecord.ERROR_INVALID_OPERATION && read != AudioRecord.ERROR_BAD_VALUE && read != null) {
+                    for (i in 0 until read) {
                         recordingBuffer[totalSamplesRead + i] = audioBuffer[i].toDouble() / Short.MAX_VALUE
                     }
                     totalSamplesRead += read
                 }
-
-
             }
 
-            if (selectedMethod == "RMS") {
-                computeBufferRMS(recordingBuffer)
+            // Choose dB vs Silero logic
+            if (selectedMethod == "dB") {
+                computeBufferdB(recordingBuffer)
             } else {
                 computeBufferSilero(recordingBuffer)
             }
 
-            System.arraycopy(recordingBuffer, windowSize, tempRecordingBuffer, 0, recordingBuffer.size - windowSize)
+            // Shift the buffer by windowSize
+            System.arraycopy(recordingBuffer, windowSize, tempRecordingBuffer, 0, RECORDING_LENGTH - windowSize)
             recordingBuffer = DoubleArray(RECORDING_LENGTH)
-
             System.arraycopy(tempRecordingBuffer, 0, recordingBuffer, 0, tempRecordingBuffer.size)
-
         }
         stopRecording()
     }
 
-    private fun computeBufferRMS(audioBuffer: DoubleArray) {
-
-        //Root-Mean-Square
-
+    /**
+     * Simple dB check in decibels, then do MFCC + TFLite if above threshold
+     */
+    private fun computeBufferdB(audioBuffer: DoubleArray) {
         val decibels = calculateDecibels(audioBuffer)
         Log.d(TAG, "Sound level: $decibels dB")
 
         if (decibels < dbThreshold) {
-            Log.d(TAG, "Sound level below threshold, skipping prediction.")
-
-            // Send callback indicating no one is talking
-            callback?.onDataUpdated(arrayListOf(Result("none", 0.0)))
-            return // Skip further processing since no sound was detected
-        }
-
-        val mfccConvert = MFCC()
-        mfccConvert.setSampleRate(SAMPLE_RATE)
-        val nMFCC = NUM_MFCC
-        mfccConvert.setN_mfcc(nMFCC)
-        val mfccInput = mfccConvert.process(audioBuffer)
-        val nFFT = mfccInput.size / nMFCC
-        val mfccValues = Array(nMFCC) { FloatArray(nFFT) }
-
-        //loop to convert the mfcc values into multi-dimensional array
-        for (i in 0 until nFFT) {
-            var indexCounter = i * nMFCC
-            val rowIndexValue = i % nFFT
-            for (j in 0 until nMFCC) {
-                mfccValues[j][rowIndexValue] = mfccInput[indexCounter]
-                indexCounter++
-            }
-        }
-
-        Log.d(TAG, "MFCC Shape: ${mfccValues.size}, ${mfccValues[0].size}")
-
-        // Pass matrix to model
-        loadAndPredict(mfccInput)
-    }
-
-    private fun computeBufferSilero(audioBuffer: DoubleArray) {
-        // Silero
-
-        // Convert DoubleArray to FloatArray for PyTorch model
-        val vadModel = SileroVAD(this)
-        val speechDetected = vadModel.isSpeechDetected(audioBuffer.map { it.toFloat() }.toFloatArray())
-
-        if (!speechDetected) {
-            Log.d(TAG, "No speech detected, skipping prediction.")
+            // Show "none" and skip TFLite
+            Log.d(TAG, "Sound level below threshold, skipping model inference.")
             callback?.onDataUpdated(arrayListOf(Result("none", 0.0)))
             return
         }
 
-        Log.d(TAG, "Speech detected, proceeding with feature extraction.")
-
-        // MFCC Feature Extraction
-        val mfccConvert = MFCC()
-        mfccConvert.setSampleRate(SAMPLE_RATE)
-        val nMFCC = NUM_MFCC
-        mfccConvert.setN_mfcc(nMFCC)
+        // Do MFCC, run model
+        val mfccConvert = MFCC().apply {
+            setSampleRate(SAMPLE_RATE)
+            setN_mfcc(NUM_MFCC)
+        }
         val mfccInput = mfccConvert.process(audioBuffer)
-        val nFFT = mfccInput.size / nMFCC
-        val mfccValues = Array(nMFCC) { FloatArray(nFFT) }
+        loadAndPredict(mfccInput)
+    }
 
-        for (i in 0 until nFFT) {
-            var indexCounter = i * nMFCC
-            val rowIndexValue = i % nFFT
-            for (j in 0 until nMFCC) {
-                mfccValues[j][rowIndexValue] = mfccInput[indexCounter]
-                indexCounter++
-            }
+    /**
+     * Use Silero VAD (user-provided class) to detect speech; skip if none,
+     * else do MFCC + TFLite
+     */
+    private fun computeBufferSilero(audioBuffer: DoubleArray) {
+        val vadModel = SileroVAD(this)
+        val speechDetected = vadModel.isSpeechDetected(audioBuffer.map { it.toFloat() }.toFloatArray())
+
+        if (!speechDetected) {
+            Log.d(TAG, "No speech detected (Silero), skipping model inference.")
+            callback?.onDataUpdated(arrayListOf(Result("none", 0.0)))
+            return
         }
 
-        Log.d(TAG, "MFCC Shape: ${mfccValues.size}, ${mfccValues[0].size}")
-
-        // Pass matrix to model
+        // Do MFCC, run model
+        val mfccConvert = MFCC().apply {
+            setSampleRate(SAMPLE_RATE)
+            setN_mfcc(NUM_MFCC)
+        }
+        val mfccInput = mfccConvert.process(audioBuffer)
         loadAndPredict(mfccInput)
     }
 
     private fun calculateDecibels(buffer: DoubleArray): Double {
-        // Calculate RMS
-        val rms = sqrt(buffer.map { it * it }.average())
-        return 20 * log10(rms) + 85
+        // Root Mean Square
+        val dB = sqrt(buffer.map { it * it }.average())
+        // Convert to dB. The +85 is approximate offset for 16-bit scale (adjust as needed).
+        return 20 * log10(dB) + 85
     }
 
     private fun loadAndPredict(mfccs: FloatArray) {
+        // Load TFLite model
         val mappedByteBuffer = FileUtil.loadMappedFile(this, "model_16K_LR.tflite")
         interpreter = Interpreter(mappedByteBuffer)
 
-        val imageTensorIndex = 0
-        val imageShape = interpreter?.getInputTensor(imageTensorIndex)?.shape()
-        val imageDataType = interpreter?.getInputTensor(imageTensorIndex)?.dataType()
+        val inputIndex = 0
+        val inputShape = interpreter?.getInputTensor(inputIndex)?.shape()
+        val inputType = interpreter?.getInputTensor(inputIndex)?.dataType()
 
-        val probabilityTensorIndex = 0
-        val probabilityShape = interpreter?.getOutputTensor(probabilityTensorIndex)?.shape()
-        val probabilityDataType = interpreter?.getOutputTensor(probabilityTensorIndex)?.dataType()
+        val outputIndex = 0
+        val outputShape = interpreter?.getOutputTensor(outputIndex)?.shape()
+        val outputType = interpreter?.getOutputTensor(outputIndex)?.dataType()
 
-        val imageInputBuffer: TensorBuffer = TensorBuffer.createFixedSize(imageShape, imageDataType)
-        imageInputBuffer.loadArray(mfccs, imageShape)
+        val inputBuffer = TensorBuffer.createFixedSize(inputShape, inputType)
+        inputBuffer.loadArray(mfccs, inputShape)
 
-        val outputTensorBuffer = TensorBuffer.createFixedSize(probabilityShape, probabilityDataType)
+        val outputBuffer = TensorBuffer.createFixedSize(outputShape, outputType)
+        interpreter?.run(inputBuffer.buffer, outputBuffer.buffer)
 
-        interpreter?.run(imageInputBuffer.buffer, outputTensorBuffer.buffer)
-
-        var axisLabels: List<String>? = null
-        try {
-            axisLabels = FileUtil.loadLabels(this, "labels.txt")
+        // Load labels
+        val axisLabels = try {
+            FileUtil.loadLabels(this, "labels.txt")
         } catch (e: Exception) {
             Log.e(TAG, "Error reading label file", e)
+            null
+        } ?: return
+
+        // Process the output
+        val probabilityProcessor = TensorProcessor.Builder().build()
+        val labeledMap = TensorLabel(axisLabels, probabilityProcessor.process(outputBuffer)).mapWithFloatValue
+
+        val results = ArrayList<Result>()
+        labeledMap.forEach { (label, confidence) ->
+            results.add(Result(label, confidence.toDouble()))
         }
 
-        val probabilityProcessor: TensorProcessor = TensorProcessor.Builder().build()
-        if (axisLabels != null) {
-            val labels = TensorLabel(axisLabels, probabilityProcessor.process(outputTensorBuffer)).mapWithFloatValue
-            val results = ArrayList<Result>()
-            for (label in labels) {
-                results.add(Result(label.key, label.value.toDouble()))
-            }
-            Log.d(TAG, "Labels are: $labels")
-            val result = labels.maxBy { it.value }.key
-            val value = labels.maxBy { it.value }.value
-            if (value!! > probabilityThreshold) {
-                Log.d(TAG, "Result: $result")
-                Log.d(TAG, "Result: ${labels.maxBy { it.value }}")
+        // Find best prediction
+        val bestEntry = labeledMap.maxByOrNull { it.value }
+        if (bestEntry != null) {
+            val bestLabel = bestEntry.key
+            val bestConfidence = bestEntry.value
+            Log.d(TAG, "Max Label: $bestLabel, conf=$bestConfidence")
 
+            // If above threshold, show recognized word
+            if (bestConfidence > probabilityThreshold) {
                 updateData(results)
-
+                // Notification
                 notification = createNotification()
-                updateNotification(result!!)
+                updateNotification(bestLabel)
 
-                //Log entry
-                val logEntry = LogEntry(
-                    topKeyword = result ?: "unknown",
-                    confidence = value.toDouble()
-                )
+                // Logging
+                val logEntry = LogEntry(topKeyword = bestLabel, confidence = bestConfidence.toDouble())
                 LoggingManager.appendLog(this, logEntry)
+            } else {
+                // Otherwise, force "none"
+                callback?.onDataUpdated(arrayListOf(Result("none", 0.0)))
             }
-
-
         }
     }
 
@@ -414,7 +380,6 @@ class AudioRecordingService : Service() {
 
     private fun stopRecording() {
         isRecording = false
-
         if (audioRecord?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
             try {
                 audioRecord?.stop()
@@ -429,8 +394,6 @@ class AudioRecordingService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
-
-
 
     override fun onDestroy() {
         stopRecording()

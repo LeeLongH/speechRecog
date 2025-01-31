@@ -28,7 +28,6 @@ class HomeFragment : Fragment(), RecordingCallback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         sharedPreferences = activity?.let { PreferenceManager.getDefaultSharedPreferences(it) }
     }
 
@@ -45,25 +44,25 @@ class HomeFragment : Fragment(), RecordingCallback {
 
         return view
     }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Button: dB
         binding.btnRecord.setOnClickListener {
             if (isServiceBound) {
                 // Stop the service if running
-                binding.btnRecord.text = "Record with RMS"
+                binding.btnRecord.text = "Record with dB"
                 stopService()
                 (activity as? MainActivity)?.writeFirebase()
             } else {
-                // Start the service
+                // Start the service for dB
                 binding.btnRecord.text = "Stop"
-                val intent = Intent(requireActivity(), AudioRecordingService::class.java)
-                intent.putExtra("method", "RMS")
-                requireActivity().startService(intent)
-                bindService()
+                startServiceWithMethod("dB")
             }
         }
 
+        // Button: Silero
         binding.btnRecordSilero.setOnClickListener {
             if (isServiceBound) {
                 // Stop the service if running
@@ -71,18 +70,43 @@ class HomeFragment : Fragment(), RecordingCallback {
                 stopService()
                 (activity as? MainActivity)?.writeFirebase()
             } else {
-                // Start the service
+                // Start the service for Silero
                 binding.btnRecordSilero.text = "Stop"
-                val intent = Intent(requireActivity(), AudioRecordingService::class.java)
-                intent.putExtra("method", "Silero")
-                requireActivity().startService(intent)
-                bindService()
+                startServiceWithMethod("Silero")
             }
         }
     }
 
+    /**
+     * Pass along user‐configured thresholds + selected method to the service
+     */
+    private fun startServiceWithMethod(method: String) {
+        val intent = Intent(requireActivity(), AudioRecordingService::class.java)
+        intent.putExtra("method", method)
+
+        try {
+            val energyThreshold = sharedPreferences?.getString("energy", "0.1")
+            val probabilityThreshold = sharedPreferences?.getString("probability", "0.002")
+            val windowSize = sharedPreferences?.getString("window_size", "8000")
+            val topK = sharedPreferences?.getString("top_k", "1")
+
+            intent.putExtras(Bundle().apply {
+                putDouble("energyThreshold", energyThreshold?.toDouble()!!)
+                putFloat("probabilityThreshold", probabilityThreshold?.toFloat()!!)
+                putInt("windowSize", windowSize?.toInt()!!)
+                putInt("topK", topK?.toInt()!!)
+            })
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Start & bind
+        requireActivity().startService(intent)
+        bindService()
+    }
+
     override fun onDataUpdated(data: ArrayList<Result>) {
-        Log.d(TAG, "Updated:" + data.size)
+        Log.d(TAG, "Updated: ${data.size}")
         activity?.runOnUiThread {
             adapter.clear()
             adapter.addAll(data)
@@ -108,7 +132,6 @@ class HomeFragment : Fragment(), RecordingCallback {
 
     override fun onDestroy() {
         super.onDestroy()
-
         if (isServiceBound) {
             activity?.unbindService(serviceConnection)
             isServiceBound = false
@@ -117,7 +140,6 @@ class HomeFragment : Fragment(), RecordingCallback {
 
     override fun onStop() {
         super.onStop()
-
         if (isServiceBound && audioRecordingService != null) {
             if (audioRecordingService?.isRecording == true) {
                 Log.d(TAG, "Foregrounding service")
@@ -129,32 +151,6 @@ class HomeFragment : Fragment(), RecordingCallback {
         }
     }
 
-    private fun startService() {
-        val serviceIntent = Intent(activity, AudioRecordingService::class.java)
-
-        try {
-            val energyThreshold = sharedPreferences?.getString("energy", "0.1")
-            //Log.d(TAG, "energyThreshold: $energyThreshold")
-            val probabilityThreshold = sharedPreferences?.getString("probability", "0.002")
-            //Log.d(TAG, "probabilityThreshold: $probabilityThreshold")
-            val windowSize = sharedPreferences?.getString("window_size", "8000")
-            //Log.d(TAG, "windowSize: $windowSize")
-            val topK = sharedPreferences?.getString("top_k", "1")
-
-            serviceIntent.putExtras(Bundle().apply {
-                putDouble("energyThreshold", energyThreshold?.toDouble()!!)
-                putFloat("probabilityThreshold", probabilityThreshold?.toFloat()!!)
-                putInt("windowSize", windowSize?.toInt()!!)
-                putInt("topK", topK?.toInt()!!)
-            })
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
-        activity?.startService(serviceIntent)
-        bindService()
-    }
-
     private fun stopService() {
         if (isServiceBound) {
             unbindService()
@@ -164,13 +160,12 @@ class HomeFragment : Fragment(), RecordingCallback {
         activity?.stopService(serviceIntent)
     }
 
-
     private fun bindService() {
+        Log.d(TAG, "Binding to AudioRecordingService")
         val bindIntent = Intent(activity, AudioRecordingService::class.java)
-        activity?.bindService(bindIntent, serviceConnection, AppCompatActivity.BIND_AUTO_CREATE)
-        isServiceBound = true
+        val success = activity?.bindService(bindIntent, serviceConnection, AppCompatActivity.BIND_AUTO_CREATE)
+        isServiceBound = success == true
     }
-
 
     private fun unbindService() {
         if (isServiceBound) {
